@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
-import { useData, ARENAS, Arenado, ArenaId } from "./data-context";
-import { Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, X } from "lucide-react";
+import { useData, Arenado, ArenaId } from "./data-context";
+import { Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, PencilLine, Trash2, X, CheckSquare, Square, Trash } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -11,14 +11,17 @@ export function ArenadosTable({
   filtroArenaInicial?: string;
   onVerDetalhe: (id: string) => void;
 }) {
-  const { arenados } = useData();
+  const { arenas, arenados, deleteArenado, updateArenado, currentUserRole } = useData();
+  const canManageArenados = currentUserRole === "admin";
   const [busca, setBusca] = useState("");
   const [arenaFiltro, setArenaFiltro] = useState<ArenaId | "todas">(
     (filtroArenaInicial as ArenaId) || "todas"
   );
   const [statusFiltro, setStatusFiltro] = useState<"todos" | "ativo" | "inativo" | "pendente">("todos");
+  const [idadeFiltro, setIdadeFiltro] = useState<"todas" | "jovem" | "adulto" | "senior">("todas");
   const [pagina, setPagina] = useState(1);
   const [ordenar, setOrdenar] = useState<{ campo: keyof Arenado; asc: boolean }>({ campo: "nome", asc: true });
+  const [selecionados, setSelecionados] = useState<string[]>([]);
 
   const filtrados = useMemo(() => {
     let res = [...arenados];
@@ -36,6 +39,16 @@ export function ArenadosTable({
     if (arenaFiltro !== "todas") res = res.filter(a => a.arena === arenaFiltro);
     if (statusFiltro !== "todos") res = res.filter(a => a.status === statusFiltro);
 
+    if (idadeFiltro !== "todas") {
+      res = res.filter(a => {
+        if (!a.idade) return false;
+        if (idadeFiltro === "jovem") return a.idade < 25;
+        if (idadeFiltro === "adulto") return a.idade >= 25 && a.idade < 45;
+        if (idadeFiltro === "senior") return a.idade >= 45;
+        return true;
+      });
+    }
+
     res.sort((a, b) => {
       const va = String(a[ordenar.campo] ?? "");
       const vb = String(b[ordenar.campo] ?? "");
@@ -43,7 +56,7 @@ export function ArenadosTable({
     });
 
     return res;
-  }, [arenados, busca, arenaFiltro, statusFiltro, ordenar]);
+  }, [arenados, busca, arenaFiltro, statusFiltro, idadeFiltro, ordenar]);
 
   const totalPaginas = Math.ceil(filtrados.length / PAGE_SIZE);
   const pagina_atual = filtrados.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE);
@@ -51,6 +64,40 @@ export function ArenadosTable({
   const toggleOrdenar = (campo: keyof Arenado) => {
     setOrdenar(prev => ({ campo, asc: prev.campo === campo ? !prev.asc : true }));
     setPagina(1);
+  };
+
+  const toggleSelecionar = (id: string) => {
+    setSelecionados(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelecionarTodos = () => {
+    const idsPagina = pagina_atual.map(a => a.id);
+    const todosSelecionados = idsPagina.every(id => selecionados.includes(id));
+
+    if (todosSelecionados) {
+      setSelecionados(prev => prev.filter(id => !idsPagina.includes(id)));
+    } else {
+      setSelecionados(prev => [...new Set([...prev, ...idsPagina])]);
+    }
+  };
+
+  const lidarAcaoEmMassa = async (acao: "arena" | "excluir", valor?: string) => {
+    if (selecionados.length === 0) return;
+
+    if (acao === "excluir") {
+      if (!window.confirm(`Excluir ${selecionados.length} arenados permanentemente?`)) return;
+      for (const id of selecionados) {
+        await deleteArenado(id);
+      }
+    } else if (acao === "arena") {
+      for (const id of selecionados) {
+        await updateArenado(id, { arena: valor as ArenaId });
+      }
+    }
+
+    setSelecionados([]);
   };
 
   const getStatusBadge = (status: Arenado["status"]) => {
@@ -69,6 +116,44 @@ export function ArenadosTable({
 
   return (
     <div className="space-y-4">
+      {/* Bulk Actions Bar */}
+      {selecionados.length > 0 && canManageArenados && (
+        <div className="bg-blue-600 rounded-2xl p-3 shadow-lg flex items-center gap-4 text-white animate-in fade-in slide-in-from-top-2 duration-300">
+          <span className="font-medium ml-2">{selecionados.length} selecionados</span>
+          <div className="h-6 w-px bg-white/20 mx-2" />
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm opacity-80">Mover para:</span>
+            <div className="flex gap-1">
+              {arenas.map(a => (
+                <button
+                  key={a.id}
+                  onClick={() => lidarAcaoEmMassa("arena", a.id)}
+                  className="w-6 h-6 rounded-full border border-white/40 hover:scale-110 transition-transform"
+                  style={{ backgroundColor: a.cor }}
+                  title={`Mover para ${a.nome}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={() => lidarAcaoEmMassa("excluir")}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 transition-colors text-sm"
+          >
+            <Trash className="w-4 h-4" />
+            Excluir
+          </button>
+          
+          <button
+            onClick={() => setSelecionados([])}
+            className="p-1 px-2 hover:bg-white/10 rounded-lg"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Filters bar */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
         <div className="flex flex-wrap gap-3 items-center">
@@ -98,7 +183,7 @@ export function ArenadosTable({
               style={{ fontSize: "0.875rem" }}
             >
               <option value="todas">Todas as arenas</option>
-              {ARENAS.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+              {arenas.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
             </select>
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
@@ -119,6 +204,22 @@ export function ArenadosTable({
             <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           </div>
 
+          {/* Age filter */}
+          <div className="relative">
+            <select
+              value={idadeFiltro}
+              onChange={e => { setIdadeFiltro(e.target.value as typeof idadeFiltro); setPagina(1); }}
+              className="appearance-none pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:border-blue-400 cursor-pointer"
+              style={{ fontSize: "0.875rem" }}
+            >
+              <option value="todas">Todas as idades</option>
+              <option value="jovem">Jovens (até 24)</option>
+              <option value="adulto">Adultos (25-44)</option>
+              <option value="senior">Sênior (45+)</option>
+            </select>
+            <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          </div>
+
           <div className="flex items-center gap-2 ml-auto">
             <Filter className="w-4 h-4 text-slate-400" />
             <span className="text-slate-400" style={{ fontSize: "0.875rem" }}>{filtrados.length} resultados</span>
@@ -134,7 +235,7 @@ export function ArenadosTable({
           >
             Todas
           </button>
-          {ARENAS.map(a => (
+          {arenas.map(a => (
             <button
               key={a.id}
               onClick={() => setArenaFiltro(a.id)}
@@ -154,10 +255,25 @@ export function ArenadosTable({
           <table className="w-full">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>
+                {canManageArenados && (
+                  <th className="px-4 py-3 w-10">
+                    <button
+                      onClick={toggleSelecionarTodos}
+                      className="p-1 rounded hover:bg-slate-200 text-slate-500"
+                    >
+                      {pagina_atual.length > 0 && pagina_atual.every(a => selecionados.includes(a.id)) ? (
+                        <CheckSquare className="w-4 h-4 text-blue-600" />
+                      ) : (
+                        <Square className="w-4 h-4" />
+                      )}
+                    </button>
+                  </th>
+                )}
                 {[
                   { campo: "id" as keyof Arenado, label: "ID" },
                   { campo: "nome" as keyof Arenado, label: "Nome" },
                   { campo: "cpf" as keyof Arenado, label: "CPF" },
+                  { campo: "idade" as keyof Arenado, label: "Idade" },
                   { campo: "arena" as keyof Arenado, label: "Arena" },
                   { campo: "cidade" as keyof Arenado, label: "Cidade" },
                   { campo: "status" as keyof Arenado, label: "Status" },
@@ -183,14 +299,33 @@ export function ArenadosTable({
             <tbody>
               {pagina_atual.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-16 text-slate-400" style={{ fontSize: "0.9375rem" }}>
+                  <td colSpan={10} className="text-center py-16 text-slate-400" style={{ fontSize: "0.9375rem" }}>
                     Nenhum arenado encontrado
                   </td>
                 </tr>
               ) : pagina_atual.map(arenado => {
-                const arena = ARENAS.find(a => a.id === arenado.arena)!;
+                const arena = arenas.find(a => a.id === arenado.arena) ?? arenas[0] ?? {
+                  id: "sem-arena",
+                  nome: "Sem arena",
+                  cor: "#64748b",
+                };
+                const estaSelecionado = selecionados.includes(arenado.id);
                 return (
-                  <tr key={arenado.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                  <tr key={arenado.id} className={`border-b border-slate-50 hover:bg-slate-50 transition-colors ${estaSelecionado ? "bg-blue-50/50" : ""}`}>
+                    {canManageArenados && (
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => toggleSelecionar(arenado.id)}
+                          className="p-1 rounded hover:opacity-80 transition-opacity"
+                        >
+                          {estaSelecionado ? (
+                            <CheckSquare className="w-4 h-4 text-blue-600" />
+                          ) : (
+                            <Square className="w-4 h-4 text-slate-300" />
+                          )}
+                        </button>
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <span className="text-slate-400" style={{ fontSize: "0.8125rem", fontFamily: "monospace" }}>{arenado.id}</span>
                     </td>
@@ -209,6 +344,9 @@ export function ArenadosTable({
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500" style={{ fontSize: "0.8125rem" }}>{arenado.cpf}</td>
+                    <td className="px-4 py-3 text-slate-500" style={{ fontSize: "0.8125rem" }}>
+                      {arenado.idade ?? "—"}
+                    </td>
                     <td className="px-4 py-3">
                       <span
                         className="px-2.5 py-1 rounded-full text-white flex items-center gap-1.5 w-fit"
@@ -224,13 +362,37 @@ export function ArenadosTable({
                     <td className="px-4 py-3">{getStatusBadge(arenado.status)}</td>
                     <td className="px-4 py-3 text-slate-400" style={{ fontSize: "0.8125rem" }}>{arenado.dataImportacao}</td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => onVerDetalhe(arenado.id)}
-                        className="p-2 rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
-                        title="Ver detalhes"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        {canManageArenados && (
+                          <button
+                            onClick={() => onVerDetalhe(arenado.id)}
+                            className="p-2 rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                            title="Ver / editar"
+                          >
+                            <PencilLine className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canManageArenados && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Excluir ${arenado.nome}?`)) {
+                                void deleteArenado(arenado.id);
+                              }
+                            }}
+                            className="p-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all"
+                            title="Excluir arenado"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onVerDetalhe(arenado.id)}
+                          className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all"
+                          title="Ver detalhes"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

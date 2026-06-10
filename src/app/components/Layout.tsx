@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { useData, ARENAS } from "./data-context";
+import { useData } from "./data-context";
 import {
   LayoutDashboard, Users, Upload, Shield, LogOut, Menu, X,
   ChevronRight, Bell, Search, Settings, Layers
 } from "lucide-react";
 
-type Page = "dashboard" | "arenas" | "importar" | "arenados" | "detalhe";
+type Page = "dashboard" | "arenas" | "importar" | "arenados" | "detalhe" | "usuarios";
 
 interface LayoutProps {
   page: Page;
@@ -20,12 +20,20 @@ const navItems = [
   { id: "arenas", label: "Arenas", icon: Layers },
   { id: "importar", label: "Importar Planilha", icon: Upload },
   { id: "arenados", label: "Arenados", icon: Users },
+  { id: "usuarios", label: "Usuários", icon: Users },
 ];
 
 export function Layout({ page, setPage, children }: LayoutProps) {
-  const { logout, currentUser } = useData();
+  const { arenas, logout, currentUser, currentUserRole } = useData();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const visibleNavItems = navItems.filter(item => {
+    if (currentUserRole !== "admin" && (item.id === "importar" || item.id === "usuarios")) {
+      return false;
+    }
+    return true;
+  });
 
   const pageTitles: Record<Page, string> = {
     dashboard: "Dashboard",
@@ -33,6 +41,7 @@ export function Layout({ page, setPage, children }: LayoutProps) {
     importar: "Importar Planilha",
     arenados: "Lista de Arenados",
     detalhe: "Detalhes do Arenado",
+    usuarios: "Usuários",
   };
 
   return (
@@ -67,7 +76,7 @@ export function Layout({ page, setPage, children }: LayoutProps) {
           <div className="px-4 py-3 border-b border-slate-700/50">
             <p className="text-slate-500 mb-2" style={{ fontSize: "0.6875rem", textTransform: "uppercase", letterSpacing: "0.08em" }}>Arenas Ativas</p>
             <div className="flex gap-1.5 flex-wrap">
-              {ARENAS.map(a => (
+              {arenas.map(a => (
                 <div
                   key={a.id}
                   className="w-4 h-4 rounded-full border-2 border-slate-700"
@@ -81,7 +90,7 @@ export function Layout({ page, setPage, children }: LayoutProps) {
 
         {/* Nav */}
         <nav className="flex-1 py-4 overflow-y-auto">
-          {navItems.map(item => {
+          {visibleNavItems.map(item => {
             const Icon = item.icon;
             const active = page === item.id;
             return (
@@ -122,7 +131,9 @@ export function Layout({ page, setPage, children }: LayoutProps) {
               </div>
               <div className="overflow-hidden flex-1 min-w-0">
                 <p className="text-white truncate" style={{ fontSize: "0.875rem" }}>{currentUser}</p>
-                <p className="text-slate-400" style={{ fontSize: "0.6875rem" }}>Usuário ativo</p>
+                <p className="text-slate-400" style={{ fontSize: "0.6875rem" }}>
+                  {currentUserRole === "admin" ? "Administrador" : currentUserRole === "lider" ? "Líder" : "Colaborador"}
+                </p>
               </div>
             </div>
           ) : null}

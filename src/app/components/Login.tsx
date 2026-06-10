@@ -10,15 +10,13 @@ export function Login() {
   const [erro, setErro] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro("");
     setLoading(true);
-    setTimeout(() => {
-      const ok = login(usuario, senha);
-      if (!ok) setErro("Usuário ou senha inválidos.");
-      setLoading(false);
-    }, 600);
+    const ok = await login(usuario, senha);
+    if (!ok) setErro("Usuário ou senha inválidos.");
+    setLoading(false);
   };
 
   return (
@@ -46,12 +44,12 @@ export function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-slate-300 mb-2" style={{ fontSize: "0.875rem" }}>Usuário</label>
+              <label className="block text-slate-300 mb-2" style={{ fontSize: "0.875rem" }}>Usuário ou e-mail</label>
               <input
                 type="text"
                 value={usuario}
                 onChange={e => setUsuario(e.target.value)}
-                placeholder="Digite seu usuário"
+                placeholder="Digite seu nome ou e-mail"
                 required
                 className="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-500 focus:outline-none focus:border-blue-400 focus:bg-white/15 transition-all"
               />
@@ -102,7 +100,9 @@ export function Login() {
           </form>
 
           <div className="mt-6 pt-6 border-t border-white/10">
-            
+            <p className="text-slate-400" style={{ fontSize: "0.75rem" }}>
+              O acesso é feito com a senha definida pelo administrador.
+            </p>
           </div>
         </div>
 

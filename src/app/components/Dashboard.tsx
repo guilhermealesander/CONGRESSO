@@ -1,4 +1,4 @@
-import { useData, ARENAS } from "./data-context";
+import { useData } from "./data-context";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend
@@ -6,14 +6,14 @@ import {
 import { Users, Calendar, TrendingUp, CheckCircle, Clock, XCircle } from "lucide-react";
 
 export function Dashboard({ onNavigate }: { onNavigate: (p: string) => void }) {
-  const { arenados, ultimaImportacao } = useData();
+  const { arenas, arenados, ultimaImportacao } = useData();
 
   const totalAtivos = arenados.filter(a => a.status === "ativo").length;
   const totalInativos = arenados.filter(a => a.status === "inativo").length;
   const totalPendentes = arenados.filter(a => a.status === "pendente").length;
   const taxaAtivos = arenados.length > 0 ? (totalAtivos / arenados.length) * 100 : 0;
 
-  const porArena = ARENAS.map(arena => ({
+  const porArena = arenas.map(arena => ({
     name: arena.nome.replace("Arena ", ""),
     total: arenados.filter(a => a.arena === arena.id).length,
     cor: arena.cor,

@@ -1,19 +1,74 @@
-import { useData, ARENAS } from "./data-context";
-import { Users, TrendingUp, CheckCircle } from "lucide-react";
+import { useState } from "react";
+import { useData } from "./data-context";
+import { Users, TrendingUp, Plus, Trash2 } from "lucide-react";
 
 export function Arenas({ onVerArenados }: { onVerArenados: (arena: string) => void }) {
-  const { arenados } = useData();
+  const { arenas, arenados, addArena, removeArena, currentUserRole } = useData();
+  const [nome, setNome] = useState("");
+  const [cor, setCor] = useState("#0f766e");
+  const canManageArenas = currentUserRole === "admin";
+
+  const handleAddArena = async (event: React.FormEvent) => {
+    event.preventDefault();
+    try {
+      await addArena({ nome, cor });
+      setNome("");
+      setCor("#0f766e");
+    } catch {
+      window.alert("Não foi possível adicionar a arena.");
+    }
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-slate-500" style={{ fontSize: "0.875rem" }}>Gerencie as 6 arenas do sistema com suas cores e arenados</p>
+          <p className="text-slate-500" style={{ fontSize: "0.875rem" }}>Gerencie as arenas do sistema com suas cores e arenados</p>
         </div>
       </div>
 
+      {canManageArenas && (
+        <form onSubmit={handleAddArena} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <div className="flex flex-col lg:flex-row gap-3 lg:items-end">
+            <div className="flex-1">
+              <label className="block text-slate-500 mb-2" style={{ fontSize: "0.8125rem" }}>Nome da arena</label>
+              <input
+                value={nome}
+                onChange={event => setNome(event.target.value)}
+                placeholder="Ex.: Arena Turquesa"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 focus:outline-none focus:border-blue-400"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-500 mb-2" style={{ fontSize: "0.8125rem" }}>Cor</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={cor}
+                  onChange={event => setCor(event.target.value)}
+                  className="h-11 w-14 rounded-lg border border-slate-200 bg-white p-1"
+                />
+                <input
+                  value={cor}
+                  onChange={event => setCor(event.target.value)}
+                  className="w-28 px-3 py-2.5 rounded-xl border border-slate-200 text-slate-700 focus:outline-none focus:border-blue-400"
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl text-white transition-all hover:opacity-90 flex items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg, #0f766e, #14b8a6)" }}
+            >
+              <Plus className="w-4 h-4" />
+              Adicionar cor
+            </button>
+          </div>
+        </form>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {ARENAS.map(arena => {
+        {arenas.map(arena => {
           const membros = arenados.filter(a => a.arena === arena.id);
           const ativos = membros.filter(a => a.status === "ativo").length;
           const pct = membros.length > 0 ? (ativos / membros.length) * 100 : 0;
@@ -105,6 +160,19 @@ export function Arenas({ onVerArenados }: { onVerArenados: (arena: string) => vo
                   <Users className="w-4 h-4" />
                   <span style={{ fontSize: "0.875rem" }}>Ver Arenados</span>
                 </button>
+                {canManageArenas && arenas.length > 1 && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Remover ${arena.nome}? Os arenados serão realocados para outra arena.`)) {
+                        void removeArena(arena.id);
+                      }
+                    }}
+                    className="w-full mt-2 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span style={{ fontSize: "0.875rem" }}>Remover cor</span>
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -129,7 +197,7 @@ export function Arenas({ onVerArenados }: { onVerArenados: (arena: string) => vo
               </tr>
             </thead>
             <tbody>
-              {ARENAS.map(arena => {
+              {arenas.map(arena => {
                 const membros = arenados.filter(a => a.arena === arena.id);
                 return (
                   <tr key={arena.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">

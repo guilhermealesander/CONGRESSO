@@ -1,12 +1,12 @@
-import { useState, useRef, useCallback } from "react";
-import { useData, ARENAS, Arenado, ArenaId } from "./data-context";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useData, Arenado, ArenaId } from "./data-context";
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, ChevronDown } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type ImportStatus = "idle" | "preview" | "success" | "error";
 
 export function Import() {
-  const { addArenados, arenados } = useData();
+  const { arenas, addArenados, arenados } = useData();
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [dragging, setDragging] = useState(false);
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -16,15 +16,21 @@ export function Import() {
   const [importCount, setImportCount] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (!arenas.some(arena => arena.id === arenaDefault) && arenas[0]) {
+      setArenaDefault(arenas[0].id);
+    }
+  }, [arenas, arenaDefault]);
+
   const distribuirEmEquilibrio = useCallback((itens: Partial<Arenado>[]) => {
-    const counts = ARENAS.reduce((acc, arena) => {
+    const counts = arenas.reduce((acc, arena) => {
       acc[arena.id] = arenados.filter(item => item.arena === arena.id).length;
       return acc;
     }, {} as Record<ArenaId, number>);
 
     return itens.map((item, index) => {
       const preferida = (item.arena as ArenaId | undefined) ?? (index === 0 ? arenaDefault : undefined);
-      const arena = [...ARENAS]
+      const arena = [...arenas]
         .sort((a, b) => {
           const diff = counts[a.id] - counts[b.id];
           if (diff !== 0) return diff;
@@ -42,7 +48,7 @@ export function Import() {
         arena,
       };
     });
-  }, [arenados, arenaDefault]);
+  }, [arenados, arenaDefault, arenas]);
 
   const processarArquivo = useCallback((file: File) => {
     setArquivo(file);
@@ -81,7 +87,7 @@ export function Import() {
           };
 
           const arenaVal = get(["arena"]).toLowerCase() as ArenaId;
-          const arenaValida = ARENAS.find(a => a.id === arenaVal || a.nome.toLowerCase().includes(arenaVal));
+          const arenaValida = arenas.find(a => a.id === arenaVal || a.nome.toLowerCase().includes(arenaVal));
 
           return {
             id: `IMP-${Date.now()}-${i}`,
@@ -95,6 +101,11 @@ export function Import() {
             cidade: get(["cidade", "city"]),
             estado: get(["estado", "uf", "state"]),
             profissao: get(["profissao", "profissão", "cargo", "job"]),
+            idade: (() => {
+              const raw = get(["idade", "age", "anos"]);
+              const parsed = Number(raw.replace(/[^0-9]/g, ""));
+              return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+            })(),
           };
         });
 
@@ -110,7 +121,7 @@ export function Import() {
     } else {
       reader.readAsBinaryString(file);
     }
-  }, [arenaDefault]);
+  }, [arenaDefault, arenas, distribuirEmEquilibrio]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -151,7 +162,7 @@ export function Import() {
           <div>
             <p className="text-blue-800" style={{ fontSize: "0.875rem" }}>Formatos aceitos: <strong>.xlsx, .xls, .csv</strong></p>
             <p className="text-blue-600 mt-1" style={{ fontSize: "0.8125rem" }}>
-              A planilha deve conter colunas como: <code className="bg-blue-100 px-1 rounded">nome</code>, <code className="bg-blue-100 px-1 rounded">cpf</code>, <code className="bg-blue-100 px-1 rounded">email</code>, <code className="bg-blue-100 px-1 rounded">telefone</code>, <code className="bg-blue-100 px-1 rounded">arena</code>, <code className="bg-blue-100 px-1 rounded">cidade</code>, <code className="bg-blue-100 px-1 rounded">estado</code>
+              A planilha deve conter colunas como: <code className="bg-blue-100 px-1 rounded">nome</code>, <code className="bg-blue-100 px-1 rounded">cpf</code>, <code className="bg-blue-100 px-1 rounded">email</code>, <code className="bg-blue-100 px-1 rounded">telefone</code>, <code className="bg-blue-100 px-1 rounded">arena</code>, <code className="bg-blue-100 px-1 rounded">cidade</code>, <code className="bg-blue-100 px-1 rounded">estado</code>, <code className="bg-blue-100 px-1 rounded">idade</code>
             </p>
           </div>
         </div>
@@ -193,20 +204,21 @@ export function Import() {
               <table className="w-full">
                 <thead className="bg-slate-50 border-b border-slate-100">
                   <tr>
-                    {["Nome", "CPF", "Email", "Telefone", "Arena", "Cidade", "Status"].map(h => (
+                    {["Nome", "CPF", "Email", "Telefone", "Idade", "Arena", "Cidade", "Status"].map(h => (
                       <th key={h} className="text-left px-4 py-3 text-slate-500" style={{ fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {preview.slice(0, 10).map((row, i) => {
-                    const arena = ARENAS.find(a => a.id === row.arena);
+                    const arena = arenas.find(a => a.id === row.arena);
                     return (
                       <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 text-slate-700" style={{ fontSize: "0.875rem" }}>{row.nome}</td>
                         <td className="px-4 py-3 text-slate-500" style={{ fontSize: "0.8125rem" }}>{row.cpf || "—"}</td>
                         <td className="px-4 py-3 text-slate-500" style={{ fontSize: "0.8125rem" }}>{row.email || "—"}</td>
                         <td className="px-4 py-3 text-slate-500" style={{ fontSize: "0.8125rem" }}>{row.telefone || "—"}</td>
+                        <td className="px-4 py-3 text-slate-500" style={{ fontSize: "0.8125rem" }}>{row.idade ?? "—"}</td>
                         <td className="px-4 py-3">
                           {arena && (
                             <span className="px-2 py-1 rounded-full text-white" style={{ backgroundColor: arena.cor, fontSize: "0.75rem" }}>
@@ -259,7 +271,7 @@ export function Import() {
                 className="appearance-none pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 text-slate-700 bg-white focus:outline-none focus:border-blue-400 cursor-pointer"
                 style={{ fontSize: "0.875rem" }}
               >
-                {ARENAS.map(a => (
+                {arenas.map(a => (
                   <option key={a.id} value={a.id}>{a.nome}</option>
                 ))}
               </select>

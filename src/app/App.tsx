@@ -7,16 +7,19 @@ import { Arenas } from "./components/Arenas";
 import { Import } from "./components/Import";
 import { ArenadosTable } from "./components/ArenadosTable";
 import { ArenadoDetail } from "./components/ArenadoDetail";
+import { UsersPage } from "./components/Users";
 
-type Page = "dashboard" | "arenas" | "importar" | "arenados" | "detalhe";
+type Page = "dashboard" | "arenas" | "importar" | "arenados" | "detalhe" | "usuarios";
 
 function AppContent() {
-  const { isAuthenticated } = useData();
+  const { isAuthenticated, currentUserRole } = useData();
   const [page, setPage] = useState<Page>("dashboard");
   const [arenadoId, setArenadoId] = useState<string | undefined>();
   const [filtroArena, setFiltroArena] = useState<string | undefined>();
 
   if (!isAuthenticated) return <Login />;
+
+  const canAccessUsers = currentUserRole === "admin";
 
   const handleVerDetalhe = (id: string) => {
     setArenadoId(id);
@@ -52,6 +55,9 @@ function AppContent() {
       )}
       {page === "detalhe" && arenadoId && (
         <ArenadoDetail id={arenadoId} onVoltar={() => setPage("arenados")} />
+      )}
+      {page === "usuarios" && canAccessUsers && (
+        <UsersPage />
       )}
     </Layout>
   );

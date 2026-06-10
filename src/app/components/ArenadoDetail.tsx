@@ -1,9 +1,17 @@
-import { useData, ARENAS } from "./data-context";
-import { ArrowLeft, User, Mail, Phone, MapPin, Briefcase, Calendar, Hash, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useData, Arenado } from "./data-context";
+import { ArrowLeft, User, Mail, Phone, MapPin, Briefcase, Calendar, Hash, Shield, Save, Trash2 } from "lucide-react";
 
 export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => void }) {
-  const { arenados, updateArenado } = useData();
+  const { arenas, arenados, updateArenado, deleteArenado, currentUserRole } = useData();
   const arenado = arenados.find(a => a.id === id);
+  const [form, setForm] = useState<Arenado | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const canManageArenado = currentUserRole === "admin";
+
+  useEffect(() => {
+    setForm(arenado ? { ...arenado } : null);
+  }, [arenado]);
 
   if (!arenado) {
     return (
@@ -16,7 +24,37 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
     );
   }
 
-  const arena = ARENAS.find(a => a.id === arenado.arena)!;
+  const arena = arenas.find(a => a.id === arenado.arena) ?? arenas[0] ?? {
+    id: "sem-arena",
+    nome: "Sem arena",
+    cor: "#64748b",
+    corBg: "bg-slate-100",
+    corText: "text-slate-700",
+    corBorder: "border-slate-300",
+    corBadge: "bg-slate-500",
+  };
+
+  const salvarAlteracoes = async () => {
+    if (!canManageArenado) return;
+    if (!form) return;
+    setSalvando(true);
+    try {
+      await updateArenado(id, {
+        nome: form.nome,
+        cpf: form.cpf,
+        email: form.email,
+        telefone: form.telefone,
+        cidade: form.cidade,
+        estado: form.estado,
+        profissao: form.profissao,
+        idade: form.idade,
+        arena: form.arena,
+        status: form.status,
+      });
+    } finally {
+      setSalvando(false);
+    }
+  };
 
   const statusMap = {
     ativo: { label: "Ativo", classes: "bg-green-100 text-green-700 border-green-200" },
@@ -25,10 +63,14 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
   };
 
   const alterarStatus = async (novoStatus: "ativo" | "inativo" | "pendente") => {
+    if (!canManageArenado) return;
+    setForm(prev => prev ? { ...prev, status: novoStatus } : prev);
     await updateArenado(id, { status: novoStatus });
   };
 
   const alterarArena = async (novaArena: string) => {
+    if (!canManageArenado) return;
+    setForm(prev => prev ? { ...prev, arena: novaArena as any } : prev);
     await updateArenado(id, { arena: novaArena as any });
   };
 
@@ -95,7 +137,20 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Info cards */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-          <h3 className="text-slate-800 mb-5">Dados Pessoais</h3>
+          <div className="flex items-center justify-between gap-3 mb-5">
+            <h3 className="text-slate-800">Dados Pessoais</h3>
+            {canManageArenado && (
+              <button
+                onClick={salvarAlteracoes}
+                disabled={salvando || !form}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white disabled:opacity-60"
+                style={{ backgroundColor: arena.cor }}
+              >
+                <Save className="w-4 h-4" />
+                {salvando ? "Salvando..." : "Salvar alterações"}
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {[
               { icon: User, label: "Nome Completo", value: arenado.nome },
@@ -104,6 +159,7 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
               { icon: Phone, label: "Telefone", value: arenado.telefone || "Não informado" },
               { icon: MapPin, label: "Cidade / Estado", value: `${arenado.cidade || "—"}${arenado.estado ? `, ${arenado.estado}` : ""}` },
               { icon: Briefcase, label: "Profissão", value: arenado.profissao || "Não informado" },
+              { icon: User, label: "Idade", value: arenado.idade ?? "Não informada" },
               { icon: Calendar, label: "Data de Importação", value: arenado.dataImportacao },
               { icon: Shield, label: "Arena", value: arena.nome },
             ].map(field => {
@@ -121,13 +177,49 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
               );
             })}
           </div>
+
+          {canManageArenado && (
+            <div className="mt-6 pt-6 border-t border-slate-100">
+              <h4 className="text-slate-700 mb-4">Editar informações</h4>
+              {form && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[
+                  { label: "Nome", key: "nome" as const, type: "text" },
+                  { label: "CPF", key: "cpf" as const, type: "text" },
+                  { label: "E-mail", key: "email" as const, type: "email" },
+                  { label: "Telefone", key: "telefone" as const, type: "text" },
+                  { label: "Cidade", key: "cidade" as const, type: "text" },
+                  { label: "Estado", key: "estado" as const, type: "text" },
+                  { label: "Profissão", key: "profissao" as const, type: "text" },
+                  { label: "Idade", key: "idade" as const, type: "number" },
+                ].map(field => (
+                  <label key={field.key} className="space-y-1.5">
+                    <span className="text-slate-500" style={{ fontSize: "0.75rem" }}>{field.label}</span>
+                    <input
+                      type={field.type}
+                      value={form[field.key] ?? ""}
+                      onChange={e => setForm(prev => prev ? {
+                        ...prev,
+                        [field.key]: field.type === "number"
+                          ? (e.target.value === "" ? null : Number(e.target.value))
+                          : e.target.value,
+                      } as Arenado : prev)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-blue-400 text-slate-700"
+                    />
+                  </label>
+                ))}
+              </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Actions */}
         <div className="space-y-4">
           {/* Status */}
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <h4 className="text-slate-700 mb-3">Alterar Status</h4>
+          {canManageArenado && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+              <h4 className="text-slate-700 mb-3">Alterar Status</h4>
             <div className="space-y-2">
               {(["ativo", "inativo", "pendente"] as const).map(s => (
                 <button
@@ -151,14 +243,15 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
                   </div>
                 </button>
               ))}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Arena */}
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-            <h4 className="text-slate-700 mb-3">Alterar Arena</h4>
-            <div className="space-y-2">
-              {ARENAS.map(a => (
+          {canManageArenado && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+              <h4 className="text-slate-700 mb-3">Alterar Arena</h4>
+              <div className="space-y-2">
+              {arenas.map(a => (
                 <button
                   key={a.id}
                   onClick={() => alterarArena(a.id)}
@@ -174,8 +267,9 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
                   {arenado.arena === a.id && <span className="ml-auto text-xs">✓</span>}
                 </button>
               ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Timeline */}
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
@@ -196,6 +290,27 @@ export function ArenadoDetail({ id, onVoltar }: { id: string; onVoltar: () => vo
               ))}
             </div>
           </div>
+
+          {canManageArenado && (
+            <div className="bg-white rounded-2xl p-5 shadow-sm border border-red-100">
+              <h4 className="text-red-700 mb-2">Excluir arenado</h4>
+              <p className="text-slate-500 mb-4" style={{ fontSize: "0.875rem" }}>
+                A exclusão remove o registro da lista e preserva o histórico no banco.
+              </p>
+              <button
+                onClick={async () => {
+                  if (window.confirm(`Excluir ${arenado.nome}?`)) {
+                    await deleteArenado(arenado.id);
+                    onVoltar();
+                  }
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors inline-flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Excluir definitivamente
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
